@@ -1,0 +1,18 @@
+[project]
+name = "claude-bedrock-gateway"
+version = "0.1.0"
+description = "Anthropic-compatible AI gateway routing chat to Claude models on Amazon Bedrock"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "boto3>=1.34",
+    "pydantic>=2.7",
+    "python-dotenv>=1.0",
+]
+
+[dependency-groups]
+dev = ["httpx>=0.27"]
+
+[tool.uv]
+package = false

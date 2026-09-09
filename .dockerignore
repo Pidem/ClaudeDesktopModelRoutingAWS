@@ -1,0 +1,9 @@
+.venv
+infra/.venv
+infra/cdk.out
+__pycache__
+*.pyc
+.env
+.git
+.gitignore
+README.md

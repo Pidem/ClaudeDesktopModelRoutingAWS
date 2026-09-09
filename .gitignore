@@ -1,0 +1,14 @@
+## Configs and envs
+.env
+
+## Python / uv
+.venv/
+infra/.venv/
+__pycache__/
+*.pyc
+
+## CDK
+infra/cdk.out/
+
+## Node / pnpm
+node_modules/
