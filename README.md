@@ -75,6 +75,25 @@ aws secretsmanager get-secret-value --secret-id <GatewayTokenSecretArn> \
   --query SecretString --output text
 ```
 
+## Deploy to ECS Express Mode (App Runner successor)
+
+App Runner is closed to new customers and in maintenance (KTLO); AWS recommends
+**Amazon ECS Express Mode** (Fargate + ALB + autoscaling from one API call). It has
+no CloudFormation/CDK support yet, so `infra/migrate_to_ecs_express.py` drives the
+documented CLI/API flow idempotently: creates an ECR repo, builds+pushes the image,
+ensures the three IAM roles (execution, infrastructure, and a task role scoped to
+Bedrock + the token secret), then creates/updates the Express service.
+
+```bash
+# Docker running (colima ok), AWS creds set
+AWS_PROFILE=your-profile uv run python infra/migrate_to_ecs_express.py
+```
+
+It reuses the same Secrets Manager token as the App Runner stack and leaves App
+Runner running so you can validate, switch Claude Desktop's base URL, then tear
+App Runner down with `cd infra && pnpm cdk destroy`. The service ARN is cached in
+`infra/.ecs_express_service_arn` (gitignored) for idempotent re-runs.
+
 ## Point Claude Desktop at it (Connection settings)
 
 | Field | Value |
