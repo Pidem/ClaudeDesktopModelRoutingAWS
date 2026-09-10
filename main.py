@@ -7,6 +7,7 @@ re-emits Bedrock's streaming frames as Anthropic SSE. /v1/models feeds the picke
 """
 from __future__ import annotations
 
+import functools
 import json
 from typing import Optional
 
@@ -14,15 +15,25 @@ import boto3
 from botocore.config import Config as BotoConfig
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.concurrency import run_in_threadpool
 
 import config
 
 app = FastAPI(title="Claude-on-Bedrock Gateway")
 
+# boto3 clients are thread-safe for calls; adaptive retries back off on Bedrock
+# throttling (429) instead of failing the request outright.
+_BOTO_CFG = BotoConfig(retries={"max_attempts": 4, "mode": "adaptive"})
+
+
+@functools.lru_cache(maxsize=1)
+def _default_bedrock_client():
+    """Cached Bedrock client on the default chain (task role auto-refreshes)."""
+    return boto3.client("bedrock-runtime", region_name=config.AWS_REGION, config=_BOTO_CFG)
+
 
 def _bedrock_client():
-    """Bedrock Runtime client using the default chain, or an assumed role."""
-    boto_cfg = BotoConfig(retries={"max_attempts": 2, "mode": "standard"})
+    """Bedrock Runtime client — reused default-chain client, or an assumed role."""
     if config.GATEWAY_ASSUME_ROLE_ARN:
         sts = boto3.client("sts", region_name=config.AWS_REGION)
         creds = sts.assume_role(
@@ -35,9 +46,9 @@ def _bedrock_client():
             aws_access_key_id=creds["AccessKeyId"],
             aws_secret_access_key=creds["SecretAccessKey"],
             aws_session_token=creds["SessionToken"],
-            config=boto_cfg,
+            config=_BOTO_CFG,
         )
-    return boto3.client("bedrock-runtime", region_name=config.AWS_REGION, config=boto_cfg)
+    return _default_bedrock_client()
 
 
 def _check_auth(authorization: Optional[str], x_api_key: Optional[str]) -> None:
@@ -101,7 +112,9 @@ async def messages(
     resp_headers = {"x-gateway-routed-model": routed}
 
     if not payload.get("stream"):
-        resp = client.invoke_model(modelId=bedrock_model, body=body)
+        # boto3 is blocking; run it in a worker thread so it doesn't stall the
+        # event loop (which would serialize every request this task handles).
+        resp = await run_in_threadpool(client.invoke_model, modelId=bedrock_model, body=body)
         return JSONResponse(json.loads(resp["body"].read()), headers=resp_headers)
 
     def event_stream():

@@ -39,6 +39,16 @@ INFRA_ROLE_NAME = "ecsInfrastructureRoleForExpressServices"
 # There is no List op for express services, so remember the ARN across runs.
 ARN_FILE = os.path.join(REPO_ROOT, "infra", ".ecs_express_service_arn")
 
+# Autoscale on ALB requests-per-target (right signal for an I/O-bound gateway;
+# CPU stays low while tasks wait on Bedrock). Target = avg requests per task
+# before adding capacity. Min 1 (no scale-to-zero), tune max/target for load.
+SCALING = {
+    "minTaskCount": 1,
+    "maxTaskCount": 10,
+    "autoScalingMetric": "REQUEST_COUNT_PER_TARGET",
+    "autoScalingTargetValue": 50,
+}
+
 sts = boto3.client("sts", region_name=REGION)
 iam = boto3.client("iam", region_name=REGION)
 ecr = boto3.client("ecr", region_name=REGION)
@@ -140,7 +150,9 @@ def create_service(image: str, exec_arn: str, infra_arn: str, task_arn: str) -> 
     if os.path.exists(ARN_FILE):
         arn = open(ARN_FILE).read().strip()
         print(f"[ecs] updating existing service {arn}")
-        ecs.update_express_gateway_service(serviceArn=arn, primaryContainer=container)
+        ecs.update_express_gateway_service(
+            serviceArn=arn, primaryContainer=container, scalingTarget=SCALING,
+        )
         return arn
 
     print("[ecs] creating express gateway service (retrying while IAM propagates)…")
@@ -153,7 +165,7 @@ def create_service(image: str, exec_arn: str, infra_arn: str, task_arn: str) -> 
         primaryContainer=container,
         cpu="256",
         memory="512",
-        scalingTarget={"minTaskCount": 1, "maxTaskCount": 4},
+        scalingTarget=SCALING,
     )
     for _ in range(9):
         try:
