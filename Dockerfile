@@ -16,5 +16,5 @@ COPY main.py config.py ./
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8080
 
-# App Runner health check hits /health; bind to 8080.
+# Health check hits /health; bind to 8080.
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

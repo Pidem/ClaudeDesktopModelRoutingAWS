@@ -7,11 +7,5 @@ infra/.venv/
 __pycache__/
 *.pyc
 
-## CDK
-infra/cdk.out/
-
 ## ECS Express migration state
 infra/.ecs_express_service_arn
-
-## Node / pnpm
-node_modules/

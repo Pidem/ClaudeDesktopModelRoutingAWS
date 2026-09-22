@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-"""Migrate the Claude-on-Bedrock gateway from App Runner to ECS Express Mode.
+"""Deploy the Claude-on-Bedrock gateway to Amazon ECS Express Mode.
 
-App Runner is closed to new customers and in maintenance (KTLO); AWS recommends
-Amazon ECS Express Mode as the successor. Express Mode has no CloudFormation/CDK
-support yet, so this idempotent script drives the documented CLI/API flow:
+ECS Express Mode (Fargate + ALB + autoscaling from one API call) has no
+CloudFormation/CDK support yet, so this idempotent script drives the documented
+CLI/API flow:
 
   1. Create an ECR repo and build+push the gateway image (port 8080).
-  2. Ensure three IAM roles:
+  2. Ensure the gateway bearer-token secret exists (create it if absent).
+  3. Ensure three IAM roles:
        - ecsTaskExecutionRole                 (pull image + logs)
        - ecsInfrastructureRoleForExpressServices (ALB/networking provisioning)
        - claude-gateway-task-role             (Bedrock invoke + read the token secret)
-  3. Create the Express Gateway service (Fargate + ALB + autoscaling).
-  4. Wait until it's serving, print the new URL, and leave App Runner untouched
-     so you can validate and switch Claude Desktop's base URL, then delete it.
+  4. Create the Express Gateway service (Fargate + ALB + autoscaling).
+  5. Wait until it's serving and print the URL to point Claude Desktop at.
+
+Re-running updates the existing service in place (ARN cached locally).
 
 Run:  AWS_PROFILE=<profile> uv run python infra/migrate_to_ecs_express.py
 Requires Docker running (colima is fine).
@@ -21,6 +23,8 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
+import string
 import subprocess
 import time
 
@@ -36,6 +40,9 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TASK_ROLE_NAME = "claude-gateway-task-role"
 EXEC_ROLE_NAME = "ecsTaskExecutionRole"
 INFRA_ROLE_NAME = "ecsInfrastructureRoleForExpressServices"
+# Bearer token Claude Desktop presents to the gateway. Any secret whose name
+# starts with this prefix is reused (the retired CDK stack added a random suffix).
+SECRET_NAME = "GatewayToken"
 # There is no List op for express services, so remember the ARN across runs.
 ARN_FILE = os.path.join(REPO_ROOT, "infra", ".ecs_express_service_arn")
 
@@ -62,12 +69,35 @@ def sh(cmd: str) -> None:
     subprocess.run(cmd, shell=True, check=True)
 
 
+_secret_arn: str | None = None
+
+
 def secret_arn() -> str:
-    return next(
-        s["ARN"]
-        for s in sm.list_secrets(MaxResults=100)["SecretList"]
-        if s["Name"].startswith("GatewayToken")
+    """ARN of the gateway bearer-token secret, creating it if none exists.
+
+    Idempotent: reuses any secret whose name starts with SECRET_NAME (so an
+    existing token, including one from the retired CDK stack, is never
+    duplicated), otherwise creates one with a fresh 48-char random token.
+    Cached so repeated calls in a run don't re-list or re-create.
+    """
+    global _secret_arn
+    if _secret_arn:
+        return _secret_arn
+    for s in sm.list_secrets(MaxResults=100)["SecretList"]:
+        if s["Name"].startswith(SECRET_NAME):
+            print(f"[sm] reusing secret {s['Name']}")
+            _secret_arn = s["ARN"]
+            return _secret_arn
+    alphabet = string.ascii_letters + string.digits
+    token = "".join(secrets.choice(alphabet) for _ in range(48))
+    resp = sm.create_secret(
+        Name=SECRET_NAME,
+        Description="Bearer token Claude Desktop presents to the gateway",
+        SecretString=token,
     )
+    print(f"[sm] created secret {SECRET_NAME}")
+    _secret_arn = resp["ARN"]
+    return _secret_arn
 
 
 def ensure_ecr_repo() -> str:
@@ -212,8 +242,6 @@ def main() -> None:
     exec_arn, infra_arn, task_arn = ensure_roles()
     arn = create_service(image, exec_arn, infra_arn, task_arn)
     wait_and_report(arn)
-    print("\nApp Runner is left running. Validate the new URL, point Claude Desktop at it,")
-    print("then delete App Runner:  cd infra && pnpm cdk destroy")
 
 
 if __name__ == "__main__":

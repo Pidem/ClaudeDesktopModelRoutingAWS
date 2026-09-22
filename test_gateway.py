@@ -21,19 +21,22 @@ import sys
 import boto3
 import httpx
 
-DEFAULT_URL = "https://b7kxp2di38.us-east-1.awsapprunner.com"
-# Region the stack is deployed to (where the App Runner service + secret live).
-# Hardcoded so an ambient AWS_REGION (e.g. us-west-2) can't point us elsewhere;
-# override with --region if you redeploy to another region.
+# Deployed gateway URL. The ECS Express service URL is dynamic (printed by
+# infra/migrate_to_ecs_express.py), so pass it via GATEWAY_URL or --url; this
+# falls back to the local dev server.
+DEFAULT_URL = "http://127.0.0.1:8787"
+# Region the service + secret live in. Hardcoded so an ambient AWS_REGION
+# (e.g. us-west-2) can't point us elsewhere; override with --region if you
+# deploy to another region.
 DEFAULT_REGION = "us-east-1"
-# Secret name prefix the CDK stack creates (a random suffix is appended).
+# Secret name prefix for the gateway bearer token (a random suffix is appended).
 SECRET_NAME_PREFIX = "GatewayToken"
 
 
 def get_token(secret_arn: str, region: str) -> str:
     sm = boto3.client("secretsmanager", region_name=region)
     if not secret_arn:
-        # Resolve the CDK-created secret by name prefix (avoids ARN typos).
+        # Resolve the gateway token secret by name prefix (avoids ARN typos).
         matches = [
             s["ARN"]
             for s in sm.list_secrets(MaxResults=100).get("SecretList", [])
