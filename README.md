@@ -11,20 +11,77 @@ Claude Desktop --(Anthropic Messages API, bearer token)--> Gateway --(SigV4 / IA
 ## Layout
 
 - `main.py` — FastAPI gateway: `POST /v1/messages` (stream + non-stream), `GET /v1/models`, `GET /health`.
-- `config.py` — model routing table + token resolution (Secrets Manager or env).
+- `config.py` — model catalog, strategy resolution, AIP resolution, param sanitation, fallback ladder, token resolution.
+- `router/` — the `auto` router (rules → sticky → features → tagger → fingerprint → utility) + `policies.yaml`.
+- `cost_ledger.py` — token usage × `pricing.yaml` → CloudWatch EMF + JSONL cost estimate.
+- `pricing.yaml` — per-model `$/MTok` rate card (**verify against the Bedrock pricing page**).
 - `Dockerfile` — container image (uv-based).
+- `infra/create_inference_profiles.py` — creates the Application Inference Profiles that tag Bedrock spend by routing strategy.
 - `infra/migrate_to_ecs_express.py` — deploys the container to **Amazon ECS Express Mode**.
 
-## Models routed
+## Models & routing
 
-| Desktop model id | Bedrock inference profile |
-|---|---|
-| `claude-sonnet-5` (default) | `us.anthropic.claude-sonnet-5` |
-| `claude-opus-5` | `us.anthropic.claude-opus-5` |
-| `claude-haiku-4-5` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
+Catalog (`config.MODELS`), cheapest → most capable:
 
-Enable these models in the Bedrock console (Model access) for `us-east-1` before use.
-Edit `MODEL_ROUTES` in `config.py` to change them.
+| Desktop model id | Catalog key | Bedrock system profile | Tier |
+|---|---|---|---|
+| `claude-haiku-4-5` | `haiku45` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | 1 |
+| `claude-sonnet-5` | `sonnet5` | `us.anthropic.claude-sonnet-5` | 2 |
+| `claude-opus-5` | `opus5` | `us.anthropic.claude-opus-5` | 3 |
+| `claude-fable-5` | `fable5` | `us.anthropic.claude-fable-5` | 4 |
+
+Plus the virtual **`claude-auto`** model, which routes per request.
+
+**Strategy** is resolved per request (precedence): model id `claude-auto` → `auto`;
+else header `x-routing-mode: baseline|auto|pinned`; else `ROUTER_INTERCEPT_DEFAULT=true`
+maps the fleet default (`claude-fable-5`) to `auto`; else `pinned` (honor the picked model).
+
+- **baseline** → always `fable5` (the expensive default the router is pitched against).
+- **auto** → the `router/` package (below).
+- **pinned** → the requested model.
+
+### Router (`router/`, strategy = auto)
+
+Pipeline (plan.md §5), first-turn cost ≤ ~1s, ~0 on later turns:
+
+1. **rules** (`rules.py`) — force cheapest for auxiliary calls (title/compaction);
+   floor ≥ sonnet5 for long context (>150k tok), many attachments, or Cowork
+   document-skill system prompts.
+2. **sticky** (`sticky.py`) — a session reuses its tier and only ever escalates
+   (switching models mid-session would kill the prompt cache).
+3. **features** (`features.py`) — tokens, tools, code fences, attachments, keyword hits.
+4. **estimator** — `tagger.py` (Haiku judge → `{family, difficulty, needs_long_context}`,
+   2s timeout → keyword heuristic) + `fingerprint.py` (per-model p̂ correctness and
+   ĉ cost; SCOPE-lite kNN over `bench/anchors.parquet` when it exists, else a
+   family×difficulty prior).
+5. **utility** (`utility.py`) — `U(m) = p̂ − λ·norm(log ĉ)`, restricted to the policy
+   floor; ties break cheaper.
+
+`policies.yaml` holds the Arch-Router-style per-family floors and the λ presets
+(`quality` 0.1 / `balanced` 0.5 / `saver` 1.5). Pick a budget per request with
+header `x-routing-preset: <name>` or `x-routing-alpha: <float>`. The router never
+fails a request — any internal error falls back to a keyword heuristic.
+
+On a prompt-stage refusal, throttle, or 5xx the gateway **escalates one tier** and retries
+before any bytes reach the client. Each response carries `x-routed-model`, `x-route-reason`,
+and (non-streaming) `x-est-cost-usd`. Enable the models in the Bedrock console (Model access)
+for `us-east-1` before use.
+
+## Cost tracking (tag Bedrock spend by strategy)
+
+```bash
+# 1. Create the Application Inference Profiles (idempotent) and write their ARNs.
+AWS_PROFILE=your-profile uv run python infra/create_inference_profiles.py
+# 2. Activate tag keys routing-strategy, model-tier, project in
+#    Billing -> Cost allocation tags (NOT retroactive; up to 24h to appear).
+# 3. Rebuild/redeploy so the gateway picks up infra/inference_profiles.json.
+```
+
+Invoking a model through its AIP attaches the `routing-strategy` cost tag, so Cost
+Explorer/CUR can compare `baseline-fable5` vs `auto-router`. Until the profiles exist the
+gateway falls back to the plain system profile (no tag). The live `EstimatedCostUSD`
+estimate (EMF metric in namespace `AZ/ModelRouting`, dimensions `{strategy, routed_model}`)
+is emitted regardless.
 
 ## Run locally (uv)
 

@@ -153,9 +153,13 @@ def ensure_roles() -> tuple[str, str, str]:
     task_policy = {
         "Version": "2012-10-17",
         "Statement": [
+            # Invoking through an Application Inference Profile requires Invoke on
+            # BOTH the AIP ARN and the underlying system-profile + foundation-model
+            # ARNs. `claude-*` covers Fable/Opus/Sonnet/Haiku.
             {"Effect": "Allow",
              "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
              "Resource": [
+                 f"arn:aws:bedrock:{REGION}:{ACCOUNT}:application-inference-profile/*",
                  f"arn:aws:bedrock:{REGION}:{ACCOUNT}:inference-profile/us.anthropic.claude-*",
                  "arn:aws:bedrock:*::foundation-model/anthropic.claude-*",
              ]},

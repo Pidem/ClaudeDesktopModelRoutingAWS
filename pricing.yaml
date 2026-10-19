@@ -1,0 +1,38 @@
+# Bedrock rate card, $ per million tokens (MTok), per model.
+#
+# ⚠️  VERIFY EVERY RATE on the Bedrock pricing page before the demo. The values
+#     below are indicative Anthropic list prices from a third-party roundup and
+#     are NOT authoritative. `cache_write` is the 5-min-TTL write price; where a
+#     source didn't list it we use Anthropic's usual 1.25x-input convention and
+#     flag it — replace with the real Bedrock number.
+#
+# Keys are the gateway's model catalog keys (see config.MODELS), not Bedrock ids.
+# Ledger math uses EACH MODEL'S OWN token counts (newer models tokenize ~30%
+# heavier), so never reprice one model's usage with another model's rate card.
+
+models:
+  fable5:
+    input: 10.0
+    output: 50.0
+    cache_read: 1.00
+    cache_write: 12.50   # ~1.25x input (VERIFY)
+  opus55:
+    input: 4.0
+    output: 20.0
+    cache_read: 0.20
+    cache_write: 5.00    # ~1.25x input (VERIFY)
+  opus5:
+    input: 5.0
+    output: 25.0
+    cache_read: 0.50
+    cache_write: 6.25    # ~1.25x input (VERIFY)
+  sonnet5:
+    input: 2.0
+    output: 10.0
+    cache_read: 0.20
+    cache_write: 2.50    # ~1.25x input (VERIFY)
+  haiku45:
+    input: 1.0
+    output: 5.0
+    cache_read: 0.10
+    cache_write: 1.25    # ~1.25x input (VERIFY)

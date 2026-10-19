@@ -1,0 +1,11 @@
+{
+  "azr-baseline-fable5": "arn:aws:bedrock:us-east-1:851725659266:application-inference-profile/w400lju2o33l",
+  "azr-auto-haiku45": "arn:aws:bedrock:us-east-1:851725659266:application-inference-profile/sljf3ob3k8ok",
+  "azr-auto-sonnet5": "arn:aws:bedrock:us-east-1:851725659266:application-inference-profile/cen1vzufrx66",
+  "azr-auto-opus5": "arn:aws:bedrock:us-east-1:851725659266:application-inference-profile/4osx3164la44",
+  "azr-auto-fable5": "arn:aws:bedrock:us-east-1:851725659266:application-inference-profile/fdxli0vfkns3",
+  "azr-sweep-haiku45": "arn:aws:bedrock:us-east-1:851725659266:application-inference-profile/nsndld57jzhd",
+  "azr-sweep-sonnet5": "arn:aws:bedrock:us-east-1:851725659266:application-inference-profile/ras1cka0rcy3",
+  "azr-sweep-opus5": "arn:aws:bedrock:us-east-1:851725659266:application-inference-profile/w3pgw6cntqlw",
+  "azr-sweep-fable5": "arn:aws:bedrock:us-east-1:851725659266:application-inference-profile/4ajx6oaz7opu"
+}

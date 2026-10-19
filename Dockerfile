@@ -10,8 +10,12 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-# App code.
-COPY main.py config.py ./
+# App code. inference_profiles.json is the (strategy x model) -> AIP ARN map the
+# gateway loads; a {} placeholder is committed so builds before profiles exist
+# still work (rebuild after running infra/create_inference_profiles.py).
+COPY main.py config.py cost_ledger.py pricing.yaml ./
+COPY router ./router
+COPY infra/inference_profiles.json ./infra/inference_profiles.json
 
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8080

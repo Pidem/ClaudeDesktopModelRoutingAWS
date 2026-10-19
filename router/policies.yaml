@@ -1,0 +1,27 @@
+# Arch-Router-style routing policy: business-readable, no retraining to change.
+# Each task family maps to a floor model (the router may pick higher, never lower)
+# and an expected output size used by the offline cost prior. Families match the
+# tagger's output enum and bench/tasks.yaml.
+
+# Budget knob (λ) presets. Higher λ = more cost-averse. Selected per request via
+# header x-routing-preset (name) or x-routing-alpha (raw float).
+lambda_presets:
+  quality: 0.1
+  balanced: 0.5
+  saver: 1.5
+default_preset: balanced
+
+# k for the kNN fingerprint (Phase 4 anchors); ignored while the prior is used.
+knn_k: 8
+
+families:
+  chat:      {min_tier: 1, expected_output: 300,  note: "plain-language Q&A / rewrites"}
+  summarize: {min_tier: 1, expected_output: 500,  note: "meeting/transcript summaries"}
+  extract:   {min_tier: 1, expected_output: 400,  note: "doc -> structured JSON"}
+  sql:       {min_tier: 2, expected_output: 400,  note: "cohort / analytic SQL"}
+  pv:        {min_tier: 2, expected_output: 400,  note: "pharmacovigilance triage"}
+  code:      {min_tier: 2, expected_output: 800,  note: "bioinformatics / general code"}
+  deck:      {min_tier: 2, expected_output: 1200, note: "python-pptx slide decks"}
+  biostat:   {min_tier: 2, expected_output: 600,  note: "sample size / statistics"}
+  litreview: {min_tier: 2, expected_output: 900,  note: "literature synthesis"}
+  design:    {min_tier: 3, expected_output: 1500, note: "adaptive trial design + sim"}

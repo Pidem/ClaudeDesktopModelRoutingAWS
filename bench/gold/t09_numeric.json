@@ -1,0 +1,5 @@
+{
+  "targets": {"events": 508, "sample_size": 1392},
+  "tol_rel": 0.02,
+  "note": "Schoenfeld events = (z_0.975 + z_0.90)^2 / (0.25 * ln(HR)^2), HR=0.75 -> 508. N from control survival 0.55, S_t = 0.55^HR, pooled event prob, inflated for 10% dropout -> 1392."
+}

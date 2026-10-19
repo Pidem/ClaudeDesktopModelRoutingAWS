@@ -87,14 +87,26 @@ def main() -> int:
             "messages": [{"role": "user", "content": "Reply with exactly: pong"}],
         }
 
-        # 4. non-streaming message
+        # 4. non-streaming message (+ routing/cost observability headers)
         r = client.post(f"{base}/v1/messages", headers=headers, json=payload)
         text = ""
         if r.status_code == 200:
             text = "".join(b.get("text", "") for b in r.json().get("content", []))
-        passed = r.status_code == 200 and bool(text)
+        routed = r.headers.get("x-routed-model")
+        cost = r.headers.get("x-est-cost-usd")
+        passed = r.status_code == 200 and bool(text) and bool(routed) and bool(cost)
         ok &= passed
-        print(f"[{'PASS' if passed else 'FAIL'}] POST /v1/messages -> {r.status_code} reply={text!r}")
+        print(f"[{'PASS' if passed else 'FAIL'}] POST /v1/messages -> {r.status_code} "
+              f"reply={text!r} routed={routed} est=${cost}")
+
+        # 4b. claude-auto routes to a concrete model (header reveals which)
+        r = client.post(f"{base}/v1/messages", headers=headers,
+                        json={**payload, "model": "claude-auto"})
+        routed = r.headers.get("x-routed-model")
+        passed = r.status_code == 200 and bool(routed)
+        ok &= passed
+        print(f"[{'PASS' if passed else 'FAIL'}] POST /v1/messages (claude-auto) -> "
+              f"{r.status_code} routed={routed} reason={r.headers.get('x-route-reason')}")
 
         # 5. streaming message
         got_delta = False

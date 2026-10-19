@@ -1,0 +1,10 @@
+{
+  "note": "Operating-characteristic sanity bands for a BOIN-like dose-finding design (target DLT rate 0.30, cohort size 3, 30 patients). Graded by executing the model's simulation and checking reported OCs fall in these bands, plus an Opus rubric judge on the design writeup.",
+  "target_dlt": 0.30,
+  "bands": {
+    "pct_correct_selection_min": 0.40,
+    "pct_select_overtoxic_max": 0.25,
+    "avg_n_at_mtd_min": 6.0,
+    "n_patients_expected": 30
+  }
+}

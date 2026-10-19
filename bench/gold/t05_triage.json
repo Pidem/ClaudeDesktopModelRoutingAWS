@@ -1,0 +1,11 @@
+{
+  "preferred_term_accepted": ["Anaphylactic reaction", "Anaphylaxis", "Anaphylactic shock"],
+  "seriousness": {
+    "death": false,
+    "life_threatening": true,
+    "hospitalization": true,
+    "disability": false,
+    "congenital_anomaly": false,
+    "other_medically_important": false
+  }
+}

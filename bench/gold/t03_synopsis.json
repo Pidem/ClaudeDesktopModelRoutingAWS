@@ -1,0 +1,10 @@
+{
+  "phase": "III",
+  "n_arms": 2,
+  "arms": ["tirzepatide 15 mg weekly", "placebo"],
+  "randomization_ratio": "1:1",
+  "primary_endpoint": "percent change in body weight from baseline at week 72",
+  "sample_size": 1400,
+  "key_inclusion": ["BMI at least 30", "age 18 years or older"],
+  "key_exclusion": ["type 1 diabetes", "prior bariatric surgery"]
+}
